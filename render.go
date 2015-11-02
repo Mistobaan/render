@@ -264,6 +264,13 @@ func (r *Render) execute(name string, binding interface{}) (*bytes.Buffer, error
 	return buf, r.templates.ExecuteTemplate(buf, name, binding)
 }
 
+func (r *Render) executeXML(name string, binding interface{}) (*bytes.Buffer, error) {
+	buf := new(bytes.Buffer)
+	prefix := "<?xml version='1.0' encoding='UTF-8'?>\n"
+	buf.Write([]byte(prefix))
+	return buf, r.templates.ExecuteTemplate(buf, name, binding)
+}
+
 func (r *Render) addLayoutFuncs(name string, binding interface{}) {
 	funcs := template.FuncMap{
 		"yield": func() (template.HTML, error) {
@@ -347,6 +354,31 @@ func (r *Render) HTML(w http.ResponseWriter, status int, name string, binding in
 	}
 
 	r.Render(w, h, binding)
+}
+
+// HTML builds up the response from the specified template and bindings.
+func (r *Render) XMLTemplate(w http.ResponseWriter, status int, name string, binding interface{}, htmlOpt ...HTMLOptions) {
+	// If we are in development mode, recompile the templates on every HTML request.
+	if r.opt.IsDevelopment {
+		r.compileTemplates()
+	}
+
+	head := Head{
+		ContentType: ContentXML + r.compiledCharset,
+		Status:      status,
+	}
+
+	buff, err := r.executeXML(name, binding)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	d := Data{
+		Head: head,
+	}
+
+	r.Render(w, d, buff.Bytes())
 }
 
 // JSON marshals the given interface object and writes the JSON response.
